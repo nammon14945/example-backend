@@ -1,11 +1,12 @@
 package com.itemmanagement.backend.controller;
 import com.itemmanagement.backend.model.Product;
 import com.itemmanagement.backend.model.User;
+import com.itemmanagement.backend.repository.ProductRepository;
+import com.itemmanagement.backend.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.itemmanagement.backend.repository.ProductRepository;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,8 +22,20 @@ import java.util.Optional;
 @RestController
 public class TestController {
 
-    @Autowired
-    private ProductRepository productRepository;
+//    ใช้สำหรับเรียกใช้ ProductRepo โดยตรง ปิดไว้เนื่องจากย้ายไปให้ ProductService ทำหน้าที่แทน
+//    @Autowired
+//    private ProductRepository productRepository;
+
+    // เป็นค่าว่างๆ ที่รอให้ constructor นำข้อมูลมาเติม
+    private final ProductService productService;
+
+    // constructor เป็นตัวคอยรับค่านอก class เข้ามายังในคลาสเพื่อให้ method ด้านในคลาสสามารถเรียกใช้ได้
+    // Spring Boot (IoC Container) จะไปหยิบออบเจกต์ที่ชื่อ ProductService ที่ลงทะเบียน @Service ไว้ในคลังกลางมาหย่อนใส่ช่องนี้ให้เองอัตโนมัติ
+    public TestController(ProductService productService) {
+
+        // ทำการแทนค่าเพื่อให้ค่าข้างนอก constructor รู้จักมัน
+        this.productService = productService;
+    }
 
     // example ส่ง text string ไปหน้าบ้าน
     @GetMapping("/api/get/hello")
@@ -192,21 +205,21 @@ public class TestController {
     // บันทึก @RequestBody Product product ลงไปยัง Product savedProduct โดยใช้ save method ของ spring boot Repository
     @PostMapping("/api/add/product_by_repo_method")
     public ResponseEntity<Product> createProductByRepoMethod(@RequestBody Product product) {
-        Product savedProduct = productRepository.save(product);
+        Product savedProduct = productService.createProduct(product);
         return ResponseEntity.status(HttpStatus.CREATED).body(savedProduct);
     }
 
     // เรียกดูรายการ Product ทั้งหมด
     @GetMapping("/api/get/all_products_by_repo_method")
     public List<Product> getAllProducts() {
-        return productRepository.findAll();
+        return productService.getAllProducts();
     }
 
     @GetMapping("/api/get/product_by_repo_method/{id}")
-    public ResponseEntity<Product> getProductBuId(@PathVariable Long id) {
+    public ResponseEntity<Product> getProductByIdThird(@PathVariable Long id) {
 
         // medthod findById() ของ Spring Data JPA จะคืนค่าเป็น Optional เพื่อป้องกัน NullPointerException ซึ่งบังคับให้เรา “จัดการกรณีไม่มีข้อมูล”
-        Optional<Product> product = productRepository.findById(id);
+        Optional<Product> product = productService.getProductById(id);
 
         // ถ้าเจอข้อมูล ให้ทำการ return ResponseEntity.ok(product) แบบนี้
         //    Http Status: 200 OK
@@ -228,8 +241,8 @@ public class TestController {
     }
 
     @PutMapping("/api/edit/product_by_repo_method/{id}")
-    public ResponseEntity<Product> updateProduct(@PathVariable Long id, @RequestBody Product product) {
-        Optional<Product> existing = productRepository.findById(id);
+    public ResponseEntity<Optional<Product>> updateProduct(@PathVariable Long id, @RequestBody Product product) {
+        Optional<Product> existing = productService.getProductById(id);
 
         // isPresent() ตรวจสอบ object ข้างหน้าว่ามีข้อมูลหรือไม่
         // ถ้า existing ไม่มีข้อมูล ให้ส่ง status notFound คืนไป
@@ -241,14 +254,13 @@ public class TestController {
         existing.get().setPrice(product.getPrice());
         existing.get().setInStock(product.getInStock());
 
-        Product updatedProduct = productRepository.save(existing.get());
+        Optional<Product> updatedProduct = productService.updateProduct(id, product);
         return ResponseEntity.ok(updatedProduct);
     }
 
     @DeleteMapping("/api/delete/product_by_repo_method/{id}")
     public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
-        if(productRepository.existsById(id)) {
-            productRepository.deleteById(id);
+        if(productService.deleteProduct(id)) {
             return ResponseEntity.noContent().build();
         }
 
